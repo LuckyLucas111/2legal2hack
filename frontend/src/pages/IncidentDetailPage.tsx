@@ -100,11 +100,11 @@ export default function IncidentDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    if (!id) return;
+    if (!id || !role) return;
     const numId = parseInt(id, 10);
     const [inc, t, tl, docs] = await Promise.all([
       getIncident(numId),
-      getIncidentTasks(numId),
+      getIncidentTasks(numId, role),
       getTimeline(numId),
       getDocuments(numId),
     ]);
@@ -113,7 +113,7 @@ export default function IncidentDetailPage() {
     setTimeline(tl);
     setDocuments(docs);
     setLoading(false);
-  }, [id]);
+  }, [id, role]);
 
   useEffect(() => {
     reload();
@@ -242,10 +242,12 @@ function AssessmentRow({
   label,
   value,
   pending = false,
+  details,
 }: {
   label: string;
   value: string;
   pending?: boolean;
+  details?: string;
 }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
@@ -256,12 +258,26 @@ function AssessmentRow({
         ) : (
           <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
         )}
-        <span className={`text-sm font-medium ${pending ? "text-amber-600 dark:text-amber-400" : ""}`}>
+        <span
+          title={details}
+          className={`text-sm font-medium ${details ? "cursor-help" : ""} ${pending ? "text-amber-600 dark:text-amber-400" : ""}`}
+        >
           {value}
         </span>
       </div>
     </div>
   );
+}
+
+function getNotifiabilityDisplay(assessment: string | null) {
+  if (!assessment) {
+    return { value: "Pending", details: undefined };
+  }
+
+  return {
+    value: "likely notifiable",
+    details: assessment.replace(/^yes\.\s*/i, "").trim(),
+  };
 }
 
 function getExecutiveSummary(incident: Incident) {
@@ -316,6 +332,7 @@ function OverviewTab({ incident }: { incident: Incident }) {
         ? "Yes"
         : "No";
   const executiveSummary = getExecutiveSummary(incident);
+  const notifiability = getNotifiabilityDisplay(incident.notifiability_assessment);
 
   return (
     <div className="space-y-4">
@@ -372,8 +389,9 @@ function OverviewTab({ incident }: { incident: Incident }) {
               <AssessmentRow label="NIS2 Applicable" value={nis2Val} pending={incident.nis2_applicable === null} />
               <AssessmentRow
                 label="Notifiability"
-                value={incident.notifiability_assessment ?? "Pending"}
+                value={notifiability.value}
                 pending={!incident.notifiability_assessment}
+                details={notifiability.details}
               />
             </CardContent>
           </Card>

@@ -33,10 +33,15 @@ async def list_tasks(
     incident_id: int,
     role: str | None = None,
     db: AsyncSession = Depends(get_db),
+    x_role: str = Header(default="", alias="X-Role"),
 ):
+    effective_role = role or x_role
+    if not effective_role:
+        return []
+
     query = select(Task).where(Task.incident_id == incident_id).options(selectinload(Task.response_document))
-    if role:
-        query = query.where(Task.assigned_to_role == role)
+    if effective_role != "iso":
+        query = query.where(Task.assigned_to_role == effective_role)
     query = query.order_by(Task.created_at.desc())
     result = await db.execute(query)
     return result.scalars().all()
@@ -238,10 +243,9 @@ async def update_task(
 
 @router.get("/api/v1/tasks/by-role/{role}", response_model=list[TaskResponse])
 async def get_tasks_by_role(role: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Task)
-        .where(Task.assigned_to_role == role)
-        .options(selectinload(Task.response_document))
-        .order_by(Task.created_at.desc())
-    )
+    query = select(Task).options(selectinload(Task.response_document))
+    if role != "iso":
+        query = query.where(Task.assigned_to_role == role)
+    query = query.order_by(Task.created_at.desc())
+    result = await db.execute(query)
     return result.scalars().all()

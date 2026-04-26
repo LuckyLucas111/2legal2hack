@@ -14,6 +14,7 @@ from app.schemas.incident import (
     NotificationDecision,
 )
 from app.services.timeline_service import log_event
+from app.services.overview_update_service import sync_overview_from_artifacts
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["incidents"])
 
@@ -58,6 +59,10 @@ async def get_incident(incident_id: int, db: AsyncSession = Depends(get_db)):
     incident = await db.get(Incident, incident_id)
     if not incident:
         raise HTTPException(404, "Incident not found")
+    overview_changes = await sync_overview_from_artifacts(db, incident)
+    if overview_changes:
+        await db.commit()
+        await db.refresh(incident)
     return incident
 
 
