@@ -73,7 +73,18 @@ async def update_suggestion(
         raise HTTPException(404, "Suggestion not found")
 
     old_status = sug.status
-    sug.status = data.status
+    if data.title is not None:
+        sug.title = data.title
+    if data.description is not None:
+        sug.description = data.description
+    if data.target_role is not None:
+        sug.target_role = data.target_role
+    if data.priority is not None:
+        sug.priority = data.priority
+    if data.task_type is not None:
+        sug.task_type = data.task_type
+    if data.status is not None:
+        sug.status = data.status
 
     if data.status == "dispatched" and sug.target_role:
         description = sug.description or ""
@@ -99,13 +110,11 @@ async def update_suggestion(
         )
         db.add(task)
 
-    await log_event(
-        db,
-        incident_id,
-        "suggestion_updated",
-        f"Suggestion '{sug.title}' status: {old_status} -> {data.status}",
-        x_role,
-    )
+    event_description = f"Task draft '{sug.title}' updated"
+    if data.status is not None:
+        event_description = f"Task draft '{sug.title}' status: {old_status} -> {data.status}"
+
+    await log_event(db, incident_id, "suggestion_updated", event_description, x_role)
 
     await db.commit()
     await db.refresh(sug)
