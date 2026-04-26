@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Incident, Task, Event, Report
-from app.services.rag_service import get_openai
 from app.config import BASE_DIR, settings
+from app.services.mock_responses import MOCK_RESPONSES
 
 
 REPORT_DIR = BASE_DIR / "data" / "reports"
@@ -78,38 +78,7 @@ async def generate_report_content(db: AsyncSession, incident_id: int) -> str:
 
     context = await _gather_context(db, incident)
 
-    try:
-        client = get_openai()
-        completion = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": """You are an expert incident response report writer for GDPR/NIS2 compliance.
-Generate a comprehensive, professional incident report in Markdown format.
-
-The report should include:
-1. Executive Summary
-2. Incident Description & Timeline
-3. Impact Assessment (data categories, affected individuals, potential harm)
-4. Regulatory Analysis (GDPR Art. 33/34, NIS2 obligations)
-5. Actions Taken (tasks completed, responses received)
-6. Notification Decision & Rationale
-7. Recommendations & Next Steps
-
-Use formal, precise language appropriate for regulatory submission. Reference specific GDPR articles and NIS2 provisions where applicable.""",
-                },
-                {
-                    "role": "user",
-                    "content": f"Generate the incident report based on this data:\n\n{context}",
-                },
-            ],
-            temperature=0.3,
-            max_tokens=3000,
-        )
-        return completion.choices[0].message.content or ""
-    except Exception:
-        return f"# Incident Report: {incident.title}\n\n{context}"
+    return MOCK_RESPONSES["report_generation"]
 
 
 def generate_pdf(content: str, incident_title: str, incident_id: int) -> str:

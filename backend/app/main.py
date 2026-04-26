@@ -10,9 +10,6 @@ from app.routers import incidents, tasks, timeline, dashboard, documents, knowle
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    if not settings.hf_api_key:
-        from app.services.rag_service import get_st_model
-        get_st_model()
     yield
 
 

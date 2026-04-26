@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Incident, Task, Suggestion
 from app.services.workflow_rules import generate_rule_based_suggestions
 from app.config import settings
-from app.services.rag_service import get_openai
+from app.services.mock_responses import MOCK_RESPONSES
 
 FIELD_ROLE_MAP = {
     "severity": ("iso", "Incident severity classification"),
@@ -64,51 +64,8 @@ Missing data fields that still need to be filled:
 async def generate_ai_suggestions(
     db: AsyncSession, incident: Incident, rule_suggestions: list[dict]
 ) -> list[dict]:
-    try:
-        client = get_openai()
-    except Exception:
-        return []
-
-    context = await _incident_context(db, incident)
-    rule_titles = [s["title"] for s in rule_suggestions]
-
-    prompt = f"""You are an expert GDPR/NIS2 incident response advisor.
-
-Analyze the current incident state below. Focus on:
-1. MISSING DATA: For each missing field, suggest a specific task for the responsible role to provide that data. This is your primary focus.
-2. WORKFLOW GAPS: Any additional next steps not covered by the rule-based suggestions.
-
-Current incident context:
-{context}
-
-Already suggested by rules:
-{json.dumps(rule_titles, indent=2)}
-
-Return a JSON array where each element has:
-- "title": short action title (imperative, e.g. "Assess GDPR applicability")
-- "description": explanation of what data is needed and why it matters for the incident response
-- "recommended_action": "dispatch_task"
-- "target_role": one of "iso", "ciso", "dpo", "legal", "itsec", "sysadmin", "communications", "compliance"
-- "priority": one of "critical", "high", "medium", "low"
-- "task_type": one of "assessment", "report", "notification", "info_request", "review", "general"
-
-Prioritize missing data that blocks notification and reporting decisions. Do not duplicate tasks that already exist or are already suggested by rules.
-Only return the JSON array, no other text."""
-
-    try:
-        completion = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-            max_tokens=1200,
-        )
-        raw = completion.choices[0].message.content or "[]"
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
-        return json.loads(raw)
-    except Exception:
-        return []
+    rule_titles = {s["title"] for s in rule_suggestions}
+    return [s for s in MOCK_RESPONSES["ai_suggestions"] if s["title"] not in rule_titles]
 
 
 async def generate_suggestions(db: AsyncSession, incident_id: int) -> list[Suggestion]:
