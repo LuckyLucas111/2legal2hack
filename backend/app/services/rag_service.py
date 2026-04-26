@@ -104,6 +104,55 @@ async def embed_document(incident_id: int, doc_id: int, filename: str, filepath:
     return len(chunks)
 
 
+async def embed_task_response(
+    incident_id: int,
+    task_id: int,
+    task_title: str,
+    task_description: str,
+    response_text: str,
+    responding_role: str,
+    created_by_role: str,
+) -> int:
+    document = (
+        f"Task: {task_title}\n"
+        f"Auftraggeber: {created_by_role}\n"
+        f"Auftrag: {task_description}\n"
+        f"Antwort von {responding_role}:\n"
+        f"{response_text}"
+    )
+
+    chunks = chunk_text(document)
+    if not chunks:
+        return 0
+
+    embeddings = await embed_texts(chunks)
+
+    chroma = get_chroma()
+    col = chroma.get_or_create_collection(collection_name(incident_id))
+
+    ids = [f"task_{task_id}_response_chunk_{i}" for i in range(len(chunks))]
+    metadatas = [
+        {
+            "task_id": task_id,
+            "source_type": "task_response",
+            "responding_role": responding_role,
+            "created_by_role": created_by_role,
+            "task_title": task_title,
+            "chunk_idx": i,
+        }
+        for i in range(len(chunks))
+    ]
+
+    col.upsert(
+        ids=ids,
+        embeddings=embeddings,
+        documents=chunks,
+        metadatas=metadatas,
+    )
+
+    return len(chunks)
+
+
 async def query_kb(
     incident_id: int, query: str, role: str, n_results: int = 5
 ) -> dict:

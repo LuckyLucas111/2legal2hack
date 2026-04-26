@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class TaskCreate(BaseModel):
     title: str
-    description: str
+    description: str = ""
     assigned_to_role: str
     priority: str = "medium"
     task_type: str = "general"
