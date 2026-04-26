@@ -14,6 +14,8 @@ class SuggestionResponse(BaseModel):
     description: str
     recommended_action: str
     target_role: str | None
+    priority: str | None = None
+    task_type: str | None = None
     status: str
     created_at: datetime
 

@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,6 +86,20 @@ async def upload_document(
     )
 
     return doc
+
+
+@router.get("/{document_id}/download")
+async def download_document(
+    incident_id: int,
+    document_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    doc = await db.get(Document, document_id)
+    if not doc or doc.incident_id != incident_id:
+        raise HTTPException(404, "Document not found")
+    if not os.path.exists(doc.filepath):
+        raise HTTPException(404, "File not found on disk")
+    return FileResponse(doc.filepath, filename=doc.filename)
 
 
 @router.delete("/{document_id}")

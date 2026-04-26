@@ -18,7 +18,39 @@ import {
   Send,
   Lightbulb,
   Cpu,
+  AlertTriangle,
+  ArrowUp,
+  ArrowDown,
+  Minus,
+  ClipboardList,
+  FileText,
+  Bell,
+  HelpCircle,
+  Search,
+  LayoutList,
 } from "lucide-react";
+
+const priorityConfig: Record<
+  string,
+  { label: string; color: string; icon: typeof ArrowUp }
+> = {
+  critical: { label: "Critical", color: "bg-red-600 text-white", icon: AlertTriangle },
+  high: { label: "High", color: "bg-orange-500 text-white", icon: ArrowUp },
+  medium: { label: "Medium", color: "bg-yellow-500 text-white", icon: Minus },
+  low: { label: "Low", color: "bg-green-600 text-white", icon: ArrowDown },
+};
+
+const taskTypeConfig: Record<
+  string,
+  { label: string; icon: typeof ClipboardList }
+> = {
+  assessment: { label: "Assessment", icon: ClipboardList },
+  report: { label: "Report", icon: FileText },
+  notification: { label: "Notification", icon: Bell },
+  info_request: { label: "Info Request", icon: HelpCircle },
+  review: { label: "Review", icon: Search },
+  general: { label: "General", icon: LayoutList },
+};
 
 interface Props {
   incidentId: number;
@@ -144,12 +176,22 @@ function SuggestionCard({
     dispatched: "bg-blue-500 text-white",
   };
 
+  const prio = suggestion.priority
+    ? priorityConfig[suggestion.priority]
+    : null;
+  const PrioIcon = prio?.icon;
+
+  const taskType = suggestion.task_type
+    ? taskTypeConfig[suggestion.task_type]
+    : null;
+  const TypeIcon = taskType?.icon;
+
   return (
     <Card>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               {suggestion.suggestion_type === "ai_generated" ? (
                 <Cpu className="h-4 w-4 text-purple-500 shrink-0" />
               ) : (
@@ -159,19 +201,33 @@ function SuggestionCard({
               <Badge className={`text-xs ${statusColors[suggestion.status]}`}>
                 {suggestion.status}
               </Badge>
+              {prio && PrioIcon && (
+                <Badge className={`text-xs ${prio.color}`}>
+                  <PrioIcon className="h-3 w-3 mr-0.5" />
+                  {prio.label}
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
               {suggestion.description}
             </p>
-            {suggestion.target_role && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Target:{" "}
-                <span className="font-medium">
-                  {ROLE_CONFIG[suggestion.target_role]?.label ??
-                    suggestion.target_role}
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              {suggestion.target_role && (
+                <span className="text-xs text-muted-foreground">
+                  Target:{" "}
+                  <span className="font-medium">
+                    {ROLE_CONFIG[suggestion.target_role]?.label ??
+                      suggestion.target_role}
+                  </span>
                 </span>
-              </p>
-            )}
+              )}
+              {taskType && TypeIcon && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <TypeIcon className="h-3 w-3" />
+                  {taskType.label}
+                </span>
+              )}
+            </div>
           </div>
 
           {isISO && suggestion.status === "pending" && (

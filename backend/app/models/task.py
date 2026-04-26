@@ -18,9 +18,11 @@ class Task(Base):
     priority: Mapped[str] = mapped_column(String(20), default="medium")
     task_type: Mapped[str] = mapped_column(String(50), default="general")
     response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_document_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("documents.id"), nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     incident = relationship("Incident", back_populates="tasks")
+    response_document = relationship("Document", foreign_keys=[response_document_id])

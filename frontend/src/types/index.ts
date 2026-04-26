@@ -56,6 +56,12 @@ export interface Incident {
   updated_at: string;
 }
 
+export interface ResponseDocument {
+  id: number;
+  filename: string;
+  file_type: string;
+}
+
 export interface Task {
   id: number;
   incident_id: number;
@@ -67,6 +73,8 @@ export interface Task {
   priority: string;
   task_type: TaskType;
   response: string | null;
+  response_document_id: number | null;
+  response_document: ResponseDocument | null;
   due_at: string | null;
   created_at: string;
   updated_at: string;
@@ -90,6 +98,8 @@ export interface Suggestion {
   description: string;
   recommended_action: string | null;
   target_role: Role | null;
+  priority: string | null;
+  task_type: string | null;
   status: SuggestionStatus;
   created_at: string;
 }

@@ -15,6 +15,8 @@ class Suggestion(Base):
     description: Mapped[str] = mapped_column(Text)
     recommended_action: Mapped[str] = mapped_column(String(100))
     target_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    task_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

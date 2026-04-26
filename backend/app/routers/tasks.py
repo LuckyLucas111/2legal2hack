@@ -1,13 +1,20 @@
+import shutil
 from datetime import datetime
-from fastapi import APIRouter, Depends, Header, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Form
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.task import Task
 from app.models.incident import Incident
+from app.models.document import Document
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.services.timeline_service import log_event
+from app.services.rag_service import embed_document
+from app.services.legal_summary_service import generate_legal_summary
+from app.config import UPLOAD_DIR
 
 router = APIRouter(tags=["tasks"])
 
@@ -37,10 +44,19 @@ async def create_task(
     if not incident:
         raise HTTPException(404, "Incident not found")
 
+    description = data.description or ""
+    if data.assigned_to_role == "legal" and data.task_type in ("assessment", None):
+        try:
+            summary = await generate_legal_summary(db, incident_id)
+            if summary:
+                description = (description + "\n\n" if description else "") + "---\n\n**Auto-generated legal briefing:**\n\n" + summary
+        except Exception:
+            pass
+
     task = Task(
         incident_id=incident_id,
         title=data.title,
-        description=data.description,
+        description=description,
         assigned_to_role=data.assigned_to_role,
         created_by_role=x_role,
         priority=data.priority,
@@ -73,7 +89,10 @@ async def get_task(incident_id: int, task_id: int, db: AsyncSession = Depends(ge
 async def update_task(
     incident_id: int,
     task_id: int,
-    data: TaskUpdate,
+    status: str | None = Form(None),
+    response: str | None = Form(None),
+    priority: str | None = Form(None),
+    file: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
     x_role: str = Header(default=""),
 ):
@@ -81,24 +100,67 @@ async def update_task(
     if not task or task.incident_id != incident_id:
         raise HTTPException(404, "Task not found")
 
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(task, key, value)
+    changes: list[str] = []
+    if status is not None:
+        task.status = status
+        changes.append("status")
+    if response is not None:
+        task.response = response
+        changes.append("response")
+    if priority is not None:
+        task.priority = priority
+        changes.append("priority")
 
-    if data.status == "completed":
+    if file and file.filename:
+        incident_dir = UPLOAD_DIR / str(incident_id)
+        incident_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = Path(file.filename).name
+        filepath = incident_dir / safe_name
+        with open(filepath, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        suffix = Path(safe_name).suffix.lower().lstrip(".")
+        doc = Document(
+            incident_id=incident_id,
+            filename=safe_name,
+            filepath=str(filepath),
+            file_type=suffix or "unknown",
+            uploaded_by_role=x_role,
+            description=f"Attached to task: {task.title}",
+            embedded=False,
+        )
+        db.add(doc)
+        await db.flush()
+
+        try:
+            await embed_document(
+                incident_id=incident_id,
+                doc_id=doc.id,
+                filename=safe_name,
+                filepath=str(filepath),
+                role=x_role,
+            )
+            doc.embedded = True
+        except Exception:
+            pass
+
+        task.response_document_id = doc.id
+        changes.append("file")
+
+    if status == "completed":
         task.completed_at = datetime.utcnow()
 
     task.updated_at = datetime.utcnow()
 
     event_desc = f"Task '{task.title}' updated by {x_role}"
-    if data.status:
-        event_desc = f"Task '{task.title}' status changed to {data.status} by {x_role}"
-    if data.response:
+    if status:
+        event_desc = f"Task '{task.title}' status changed to {status} by {x_role}"
+    if response:
         event_desc = f"Task '{task.title}' response submitted by {x_role}"
 
     await log_event(
         db, incident_id, "task_updated", event_desc, x_role,
-        {"task_id": task_id, "changes": list(update_data.keys())},
+        {"task_id": task_id, "changes": changes},
     )
     await db.commit()
     await db.refresh(task)

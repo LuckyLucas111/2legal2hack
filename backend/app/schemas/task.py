@@ -17,6 +17,14 @@ class TaskUpdate(BaseModel):
     priority: str | None = None
 
 
+class ResponseDocumentInfo(BaseModel):
+    id: int
+    filename: str
+    file_type: str
+
+    model_config = {"from_attributes": True}
+
+
 class TaskResponse(BaseModel):
     id: int
     incident_id: int
@@ -28,6 +36,8 @@ class TaskResponse(BaseModel):
     priority: str
     task_type: str
     response: str | None
+    response_document_id: int | None = None
+    response_document: ResponseDocumentInfo | None = None
     due_at: datetime | None
     created_at: datetime
     updated_at: datetime

@@ -7,10 +7,21 @@ from app.models import Suggestion, Incident, Task
 from app.schemas.suggestion import SuggestionResponse, SuggestionUpdate
 from app.services.suggestion_engine import generate_suggestions
 from app.services.timeline_service import log_event
+from app.services.legal_summary_service import generate_legal_summary
 
 router = APIRouter(
     prefix="/api/v1/incidents/{incident_id}/suggestions", tags=["suggestions"]
 )
+
+ROLE_TASK_TYPE_MAP = {
+    "itsec": "report",
+    "dpo": "assessment",
+    "legal": "assessment",
+    "ciso": "notification",
+    "communications": "general",
+    "compliance": "review",
+    "sysadmin": "info_request",
+}
 
 
 @router.get("/", response_model=list[SuggestionResponse])
@@ -65,13 +76,25 @@ async def update_suggestion(
     sug.status = data.status
 
     if data.status == "dispatched" and sug.target_role:
+        description = sug.description or ""
+        task_type = sug.task_type or ROLE_TASK_TYPE_MAP.get(sug.target_role, "general")
+
+        if sug.target_role == "legal" and task_type == "assessment":
+            try:
+                summary = await generate_legal_summary(db, incident_id)
+                if summary:
+                    description = (description + "\n\n" if description else "") + "---\n\n**Auto-generated legal briefing:**\n\n" + summary
+            except Exception:
+                pass
+
         task = Task(
             incident_id=incident_id,
             title=sug.title,
-            description=sug.description,
+            description=description,
             assigned_to_role=sug.target_role,
             created_by_role=x_role,
-            task_type="general",
+            task_type=task_type,
+            priority=sug.priority or "medium",
             status="pending",
         )
         db.add(task)

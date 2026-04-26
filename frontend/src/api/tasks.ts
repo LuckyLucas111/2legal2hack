@@ -23,11 +23,19 @@ export async function createTask(
 export async function updateTask(
   incidentId: number,
   taskId: number,
-  payload: Partial<Task>
+  payload: { status?: string; response?: string; priority?: string },
+  file?: File
 ): Promise<Task> {
+  const formData = new FormData();
+  if (payload.status) formData.append("status", payload.status);
+  if (payload.response) formData.append("response", payload.response);
+  if (payload.priority) formData.append("priority", payload.priority);
+  if (file) formData.append("file", file);
+
   const { data } = await api.patch(
     `/incidents/${incidentId}/tasks/${taskId}`,
-    payload
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return data;
 }

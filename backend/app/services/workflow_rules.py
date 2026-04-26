@@ -18,6 +18,18 @@ async def _has_task(db: AsyncSession, incident_id: int, role: str, task_type: st
     return (result.scalar() or 0) > 0
 
 
+async def _has_completed_task(db: AsyncSession, incident_id: int, role: str, task_type: str | None = None) -> bool:
+    q = select(func.count()).select_from(Task).where(
+        Task.incident_id == incident_id,
+        Task.assigned_to_role == role,
+        Task.status == "completed",
+    )
+    if task_type:
+        q = q.where(Task.task_type == task_type)
+    result = await db.execute(q)
+    return (result.scalar() or 0) > 0
+
+
 async def _existing_suggestions(db: AsyncSession, incident_id: int) -> set[str]:
     result = await db.execute(
         select(Suggestion.title).where(
@@ -46,32 +58,58 @@ async def generate_rule_based_suggestions(
 
     phase = incident.phase
 
-    if phase in ("draft", "triage"):
-        if not await _has_task(db, incident.id, "dpo", "assessment"):
-            add(
-                "Request DPO Notifiability Assessment",
-                "A Data Protection Officer should assess whether this incident is notifiable under GDPR Art. 33.",
-                "dispatch_task",
-                "dpo",
-                90,
-            )
+    # Sequential workflow: IT-Sec -> DPO -> Legal -> Communications/Compliance
+    if phase in ("draft", "triage", "assessment"):
+        itsec_done = await _has_completed_task(db, incident.id, "itsec")
+        dpo_done = await _has_completed_task(db, incident.id, "dpo", "assessment")
+        legal_done = await _has_completed_task(db, incident.id, "legal", "assessment")
 
-        if not await _has_task(db, incident.id, "legal", "assessment"):
-            add(
-                "Request Legal Risk Classification",
-                "Legal counsel should classify the risk level of this incident under GDPR.",
-                "dispatch_task",
-                "legal",
-                85,
-            )
-
+        # Step 1: IT-Sec forensic report
         if not await _has_task(db, incident.id, "itsec"):
             add(
                 "Request IT-Sec Forensic Report",
                 "IT Security should investigate the incident, identify attack vectors, and document indicators of compromise.",
                 "dispatch_task",
                 "itsec",
-                80,
+                100,
+            )
+
+        # Step 2: DPO assessment (only after IT-Sec is done)
+        if itsec_done and not await _has_task(db, incident.id, "dpo", "assessment"):
+            add(
+                "Request DPO Notifiability Assessment",
+                "IT-Sec forensic report is complete. A Data Protection Officer should now assess whether this incident is notifiable under GDPR Art. 33.",
+                "dispatch_task",
+                "dpo",
+                90,
+            )
+
+        # Step 3: Legal risk classification (only after DPO is done)
+        if dpo_done and not await _has_task(db, incident.id, "legal", "assessment"):
+            add(
+                "Request Legal Risk Classification",
+                "DPO assessment is complete. Legal counsel should now classify the risk level of this incident under GDPR.",
+                "dispatch_task",
+                "legal",
+                85,
+            )
+
+        # Step 4: Communications & Compliance (only after Legal is done)
+        if legal_done and not await _has_task(db, incident.id, "communications"):
+            add(
+                "Request Communication Strategy",
+                "Legal assessment is complete. The Communications team should prepare messaging for affected stakeholders.",
+                "dispatch_task",
+                "communications",
+                70,
+            )
+        if legal_done and not await _has_task(db, incident.id, "compliance", "review"):
+            add(
+                "Request Compliance Sign-off",
+                "Legal assessment is complete. Compliance should review the incident documentation for regulatory completeness.",
+                "dispatch_task",
+                "compliance",
+                60,
             )
 
     if phase in ("draft", "triage") and not await _has_task(db, incident.id, "sysadmin", "info_request"):
@@ -99,24 +137,6 @@ async def generate_rule_based_suggestions(
             "phase_transition",
             "iso",
             95,
-        )
-
-    if phase == "notification" and not await _has_task(db, incident.id, "communications"):
-        add(
-            "Request Communication Strategy",
-            "The Communications team should prepare messaging for affected stakeholders and, if needed, the public.",
-            "dispatch_task",
-            "communications",
-            80,
-        )
-
-    if phase in ("notification", "decision") and not await _has_task(db, incident.id, "compliance", "review"):
-        add(
-            "Request Compliance Sign-off",
-            "Compliance should review the incident documentation for regulatory completeness before closure.",
-            "dispatch_task",
-            "compliance",
-            70,
         )
 
     if incident.gdpr_deadline:
