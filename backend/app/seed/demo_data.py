@@ -1,7 +1,6 @@
 """Seed script to populate the database with demo data for the happy-path walkthrough."""
 
 import asyncio
-import json
 from datetime import datetime, timedelta
 
 from app.database import engine, async_session, Base
@@ -19,7 +18,7 @@ async def seed():
     async with async_session() as db:
         now = datetime.utcnow()
 
-        # ── Incident 1: active, in "assessment" phase ────────────────────
+        # ── Incident 1: active demo incident ─────────────────────────────
         inc1 = Incident(
             title="Ransomware attack on customer database server",
             description=(
@@ -95,13 +94,11 @@ async def seed():
         # Timeline events for incident 1
         events1 = [
             Event(incident_id=inc1.id, event_type="incident_created", description="Incident 'Ransomware attack on customer database server' created by SysAdmin", role="sysadmin", created_at=now - timedelta(hours=8)),
-            Event(incident_id=inc1.id, event_type="phase_change", description="Phase changed from 'draft' to 'triage' by ISO", role="iso", metadata_json=json.dumps({"old_phase": "draft", "new_phase": "triage"}), created_at=now - timedelta(hours=7, minutes=50)),
             Event(incident_id=inc1.id, event_type="task_created", description="Task 'Perform DPO notifiability assessment' dispatched to DPO", role="iso", created_at=now - timedelta(hours=7, minutes=45)),
             Event(incident_id=inc1.id, event_type="task_created", description="Task 'Legal risk classification' dispatched to Legal", role="iso", created_at=now - timedelta(hours=7, minutes=44)),
             Event(incident_id=inc1.id, event_type="task_created", description="Task 'Provide technical details on affected infrastructure' dispatched to SysAdmin", role="iso", created_at=now - timedelta(hours=7, minutes=43)),
             Event(incident_id=inc1.id, event_type="task_completed", description="SysAdmin completed task: Provide technical details on affected infrastructure", role="sysadmin", created_at=now - timedelta(hours=6)),
             Event(incident_id=inc1.id, event_type="assessment_submitted", description="DPO submitted notifiability assessment", role="dpo", created_at=now - timedelta(hours=5)),
-            Event(incident_id=inc1.id, event_type="phase_change", description="Phase changed from 'triage' to 'assessment' by ISO", role="iso", metadata_json=json.dumps({"old_phase": "triage", "new_phase": "assessment"}), created_at=now - timedelta(hours=4, minutes=30)),
             Event(incident_id=inc1.id, event_type="assessment_submitted", description="Legal submitted risk classification: HIGH", role="legal", created_at=now - timedelta(hours=4)),
             Event(incident_id=inc1.id, event_type="task_created", description="Task 'Conduct forensic analysis and security report' dispatched to IT-Sec", role="iso", created_at=now - timedelta(hours=3, minutes=30)),
         ]
@@ -121,7 +118,7 @@ async def seed():
         inc1.notifiability_assessment = "Notification required under GDPR Art. 33. Personal data of ~120k individuals compromised."
         inc1.risk_classification = "high"
 
-        # ── Incident 2: fresh, in "draft" phase ─────────────────────────
+        # ── Incident 2: fresh demo incident ─────────────────────────────
         inc2 = Incident(
             title="Phishing campaign targeting finance department",
             description=(
@@ -168,7 +165,6 @@ async def seed():
 
         events3 = [
             Event(incident_id=inc3.id, event_type="incident_created", description="Incident 'Accidental exposure of internal API keys' created by SysAdmin", role="sysadmin", created_at=now - timedelta(days=3)),
-            Event(incident_id=inc3.id, event_type="phase_change", description="Phase changed from 'draft' to 'closed' by ISO — no personal data involved", role="iso", created_at=now - timedelta(days=3, hours=-2)),
             Event(incident_id=inc3.id, event_type="decision_made", description="CISO notification decision: no_notify", role="ciso", created_at=now - timedelta(days=3, hours=-1)),
         ]
         for e in events3:

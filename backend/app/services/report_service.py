@@ -1,4 +1,3 @@
-import json
 import os
 from datetime import datetime
 
@@ -40,7 +39,6 @@ async def _gather_context(db: AsyncSession, incident: Incident) -> str:
 
     return f"""## Incident Overview
 - **Title:** {incident.title}
-- **Phase:** {incident.phase}
 - **Severity:** {incident.severity or 'N/A'}
 - **Created by:** {incident.created_by_role}
 - **Detected at:** {incident.detected_at.strftime('%Y-%m-%d %H:%M UTC') if incident.detected_at else 'N/A'}
