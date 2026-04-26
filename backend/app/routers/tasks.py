@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Form
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.task import Task
@@ -17,6 +19,8 @@ from app.services.rag_service import embed_document, embed_task_response
 from app.services.legal_summary_service import generate_legal_summary
 from app.config import UPLOAD_DIR
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["tasks"])
 
 
@@ -26,7 +30,7 @@ async def list_tasks(
     role: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Task).where(Task.incident_id == incident_id)
+    query = select(Task).where(Task.incident_id == incident_id).options(selectinload(Task.response_document))
     if role:
         query = query.where(Task.assigned_to_role == role)
     query = query.order_by(Task.created_at.desc())
@@ -76,13 +80,16 @@ async def create_task(
         {"task_id": task.id, "assigned_to": task.assigned_to_role},
     )
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, attribute_names=["response_document"])
     return task
 
 
 @router.get("/api/v1/incidents/{incident_id}/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(incident_id: int, task_id: int, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
+    result = await db.execute(
+        select(Task).where(Task.id == task_id).options(selectinload(Task.response_document))
+    )
+    task = result.scalar_one_or_none()
     if not task or task.incident_id != incident_id:
         raise HTTPException(404, "Task not found")
     return task
@@ -122,7 +129,7 @@ async def update_task(
                 created_by_role=task.created_by_role,
             )
         except Exception:
-            pass
+            logger.exception("Failed to embed task response for task %s", task_id)
     if priority is not None:
         task.priority = priority
         changes.append("priority")
@@ -158,7 +165,7 @@ async def update_task(
             )
             doc.embedded = True
         except Exception:
-            pass
+            logger.exception("Failed to embed document %s (id=%s)", safe_name, doc.id)
 
         task.response_document_id = doc.id
         changes.append("file")
@@ -179,7 +186,7 @@ async def update_task(
         {"task_id": task_id, "changes": changes},
     )
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(task, attribute_names=["response_document"])
     return task
 
 
@@ -188,6 +195,7 @@ async def get_tasks_by_role(role: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Task)
         .where(Task.assigned_to_role == role)
+        .options(selectinload(Task.response_document))
         .order_by(Task.created_at.desc())
     )
     return result.scalars().all()

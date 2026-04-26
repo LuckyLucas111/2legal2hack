@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.incident import Incident
 from app.models.task import Task
+from app.config import settings
 from app.services.rag_service import get_openai, query_kb
 
 
@@ -65,7 +66,7 @@ async def generate_legal_summary(db: AsyncSession, incident_id: int) -> str:
 
     client = get_openai()
     completion = await client.chat.completions.create(
-        model="gpt-4o",
+        model=settings.openai_model,
         messages=[
             {
                 "role": "system",

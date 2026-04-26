@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Incident, Task, Event, Report
 from app.services.rag_service import get_openai
-from app.config import BASE_DIR
+from app.config import BASE_DIR, settings
 
 
 REPORT_DIR = BASE_DIR / "data" / "reports"
@@ -81,7 +81,7 @@ async def generate_report_content(db: AsyncSession, incident_id: int) -> str:
     try:
         client = get_openai()
         completion = await client.chat.completions.create(
-            model="gpt-4o",
+            model=settings.openai_model,
             messages=[
                 {
                     "role": "system",

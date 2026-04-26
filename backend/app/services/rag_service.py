@@ -1,15 +1,24 @@
+import asyncio
+import logging
 import os
 from pathlib import Path
 
 import chromadb
+import httpx
 from openai import AsyncOpenAI
 import pypdf
 import docx
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 _client: AsyncOpenAI | None = None
 _chroma: chromadb.ClientAPI | None = None
+_st_model = None
+_hf_client: httpx.AsyncClient | None = None
+
+HF_API_URL = f"https://router.huggingface.co/hf-inference/models/sentence-transformers/{settings.embedding_model}/pipeline/feature-extraction"
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
@@ -18,7 +27,8 @@ CHUNK_OVERLAP = 100
 def get_openai() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = AsyncOpenAI(api_key=settings.openai_api_key)
+        http_client = httpx.AsyncClient(verify=False)
+        _client = AsyncOpenAI(api_key=settings.openai_api_key, http_client=http_client)
     return _client
 
 
@@ -65,13 +75,41 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return chunks
 
 
-async def embed_texts(texts: list[str]) -> list[list[float]]:
-    client = get_openai()
-    resp = await client.embeddings.create(
-        model="text-embedding-3-small",
-        input=texts,
+def _get_hf_client() -> httpx.AsyncClient:
+    global _hf_client
+    if _hf_client is None:
+        _hf_client = httpx.AsyncClient(timeout=60.0, verify=False)
+    return _hf_client
+
+
+async def _embed_via_hf_api(texts: list[str]) -> list[list[float]]:
+    client = _get_hf_client()
+    resp = await client.post(
+        HF_API_URL,
+        headers={"Authorization": f"Bearer {settings.hf_api_key}"},
+        json={"inputs": texts, "options": {"wait_for_model": True}},
     )
-    return [item.embedding for item in resp.data]
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_st_model():
+    global _st_model
+    if _st_model is None:
+        from sentence_transformers import SentenceTransformer
+        logger.info("Loading sentence-transformers model: %s", settings.embedding_model)
+        _st_model = SentenceTransformer(settings.embedding_model)
+        logger.info("Model loaded successfully")
+    return _st_model
+
+
+async def embed_texts(texts: list[str]) -> list[list[float]]:
+    if settings.hf_api_key:
+        logger.debug("Using HF Inference API for %d texts", len(texts))
+        return await _embed_via_hf_api(texts)
+    model = get_st_model()
+    embeddings = await asyncio.to_thread(model.encode, texts, normalize_embeddings=True)
+    return embeddings.tolist()
 
 
 async def embed_document(incident_id: int, doc_id: int, filename: str, filepath: str, role: str) -> int:
@@ -207,7 +245,7 @@ Context from incident documents:
 
     client = get_openai()
     completion = await client.chat.completions.create(
-        model="gpt-4o",
+        model=settings.openai_model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": query},
