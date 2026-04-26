@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import shutil
 from datetime import datetime
@@ -20,7 +19,6 @@ from app.services.overview_update_service import (
 )
 from app.services.timeline_service import log_event
 from app.services.rag_service import embed_document, embed_task_response, extract_text
-from app.services.legal_summary_service import generate_legal_summary
 from app.config import UPLOAD_DIR
 
 logger = logging.getLogger(__name__)
@@ -58,21 +56,10 @@ async def create_task(
     if not incident:
         raise HTTPException(404, "Incident not found")
 
-    description = data.description or ""
-    if data.assigned_to_role == "legal" and data.task_type in ("assessment", None):
-        try:
-            summary = await asyncio.wait_for(
-                generate_legal_summary(db, incident_id), timeout=30
-            )
-            if summary:
-                description = (description + "\n\n" if description else "") + "---\n\n**Auto-generated legal briefing:**\n\n" + summary
-        except Exception:
-            pass
-
     task = Task(
         incident_id=incident_id,
         title=data.title,
-        description=description,
+        description=data.description or "",
         assigned_to_role=data.assigned_to_role,
         created_by_role=x_role,
         priority=data.priority,
