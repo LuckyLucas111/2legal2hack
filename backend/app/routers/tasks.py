@@ -1,3 +1,4 @@
+import asyncio
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +13,7 @@ from app.models.incident import Incident
 from app.models.document import Document
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 from app.services.timeline_service import log_event
-from app.services.rag_service import embed_document
+from app.services.rag_service import embed_document, embed_task_response
 from app.services.legal_summary_service import generate_legal_summary
 from app.config import UPLOAD_DIR
 
@@ -47,7 +48,9 @@ async def create_task(
     description = data.description or ""
     if data.assigned_to_role == "legal" and data.task_type in ("assessment", None):
         try:
-            summary = await generate_legal_summary(db, incident_id)
+            summary = await asyncio.wait_for(
+                generate_legal_summary(db, incident_id), timeout=30
+            )
             if summary:
                 description = (description + "\n\n" if description else "") + "---\n\n**Auto-generated legal briefing:**\n\n" + summary
         except Exception:
@@ -107,6 +110,19 @@ async def update_task(
     if response is not None:
         task.response = response
         changes.append("response")
+
+        try:
+            await embed_task_response(
+                incident_id=incident_id,
+                task_id=task_id,
+                task_title=task.title,
+                task_description=task.description or "",
+                response_text=response,
+                responding_role=x_role,
+                created_by_role=task.created_by_role,
+            )
+        except Exception:
+            pass
     if priority is not None:
         task.priority = priority
         changes.append("priority")
