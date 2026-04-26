@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Incident, Task, Suggestion
 from app.services.workflow_rules import generate_rule_based_suggestions
+from app.config import settings
 from app.services.rag_service import get_openai
 
 FIELD_ROLE_MAP = {
@@ -97,7 +98,7 @@ Only return the JSON array, no other text."""
 
     try:
         completion = await client.chat.completions.create(
-            model="gpt-4o",
+            model=settings.openai_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
             max_tokens=1200,

@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -13,6 +14,8 @@ from app.schemas.document import DocumentResponse
 from app.services.timeline_service import log_event
 from app.services.rag_service import embed_document
 from app.config import UPLOAD_DIR
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/incidents/{incident_id}/documents", tags=["documents"])
 
@@ -72,10 +75,8 @@ async def upload_document(
             role=x_role,
         )
         doc.embedded = True
-        await db.commit()
-        await db.refresh(doc)
     except Exception:
-        pass
+        logger.exception("Failed to embed document %s (id=%s)", safe_name, doc.id)
 
     await log_event(
         db,
@@ -84,6 +85,8 @@ async def upload_document(
         description=f"Document '{safe_name}' uploaded",
         role=x_role,
     )
+    await db.commit()
+    await db.refresh(doc)
 
     return doc
 
