@@ -10,6 +10,27 @@ A locally-hosted GDPR/NIS2 incident response management tool for coordinating da
 - Node.js 18+
 - OpenAI API key
 
+### Windows Installer
+
+On Windows, you can use the small installer script from the project root:
+
+```powershell
+.\install-windows.cmd
+```
+
+It checks Python/Node/npm, creates the backend virtual environment, prepares local data folders, creates `backend\.env` if needed, installs backend and frontend dependencies, and can start both dev servers.
+
+Useful options:
+
+```powershell
+.\install-windows.cmd -Run        # install, then start backend and frontend
+.\install-windows.cmd -Run -Seed  # also seed demo data
+.\install-windows.cmd -CheckOnly  # only check prerequisites
+.\install-windows.cmd -NoRun      # install only
+```
+
+Manual setup is still available below.
+
 ### 1. Backend
 
 ```bash
