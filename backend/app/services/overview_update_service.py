@@ -1,5 +1,12 @@
 import re
 from datetime import datetime
+from pathlib import Path
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.document import Document
+from app.models.task import Task
 
 
 RISK_LEVELS = ("critical", "high", "medium", "low")
@@ -104,7 +111,8 @@ def apply_document_overview_update(
     text: str | None = None,
 ) -> list[str]:
     role = (role or "").lower()
-    source = _source_text(filename, description, text)
+    content = _normalize(text)
+    source = _source_text(filename, description, content)
     lowered = source.lower()
     document_hint = _source_text(filename, description).lower()
     values: dict[str, object] = {}
@@ -130,28 +138,36 @@ def apply_document_overview_update(
         elif role == "dpo" and "gdpr" in lowered:
             values["gdpr_applicable"] = True
 
-    if role == "dpo" and any(
-        term in lowered for term in ("notifiability", "notifiable", "notification required")
-    ):
+    notifiability_hint = role == "dpo" and (
+        "notifiability" in document_hint
+        or "notifiability assessment" in lowered
+        or "notifiable" in lowered
+        or "notification required" in lowered
+        or "authority notification is recommended" in lowered
+        or "notification to the competent supervisory authority" in lowered
+    )
+    if notifiability_hint:
+        assessment_source = content or source
         assessment = _extract_section(
-            source,
+            assessment_source,
             (
-                "notifiability",
                 "short answer",
+                "authority notification analysis",
+                "dpo recommendation",
                 "dpo conclusion",
                 "conclusion",
-                "assessment",
             ),
         )
         if assessment or "notifiable" in lowered or "notification required" in lowered:
             values["notifiability_assessment"] = assessment or "DPO notifiability assessment submitted."
 
+    if role == "dpo":
         count = _parse_affected_count(source)
         if count is not None:
             values["individuals_affected"] = count
 
         data_categories = _extract_section(
-            source,
+            content or source,
             (
                 "data categories",
                 "personal data fields",
@@ -163,7 +179,7 @@ def apply_document_overview_update(
             values["data_categories"] = data_categories
 
         potential_harm = _extract_section(
-            source,
+            content or source,
             (
                 "potential harm",
                 "likely consequences",
@@ -230,3 +246,51 @@ def apply_task_response_overview_update(
         values["notification_decision_reason"] = _shorten(response or "CISO task response recorded.", 600)
 
     return _apply_values(incident, values)
+
+
+async def sync_overview_from_artifacts(db: AsyncSession, incident) -> list[str]:
+    changes: list[str] = []
+
+    docs_result = await db.execute(
+        select(Document).where(Document.incident_id == incident.id).order_by(Document.created_at)
+    )
+    documents = docs_result.scalars().all()
+
+    for doc in documents:
+        text = ""
+        if doc.filepath and Path(doc.filepath).exists():
+            try:
+                from app.services.rag_service import extract_text
+
+                text = extract_text(doc.filepath)
+            except Exception:
+                text = ""
+
+        changes.extend(
+            apply_document_overview_update(
+                incident,
+                doc.uploaded_by_role,
+                filename=doc.filename,
+                description=doc.description,
+                text=text,
+            )
+        )
+
+    tasks_result = await db.execute(
+        select(Task).where(Task.incident_id == incident.id).order_by(Task.updated_at)
+    )
+    tasks = tasks_result.scalars().all()
+
+    for task in tasks:
+        if not task.response:
+            continue
+        changes.extend(
+            apply_task_response_overview_update(
+                incident,
+                task.assigned_to_role,
+                task_title=task.title,
+                response=task.response,
+            )
+        )
+
+    return list(dict.fromkeys(changes))

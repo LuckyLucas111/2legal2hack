@@ -25,12 +25,10 @@ async def get_dashboard(
     )
     incidents = incidents_result.scalars().all()
 
-    tasks_result = await db.execute(
-        select(Task)
-        .where(Task.assigned_to_role == role, Task.status.in_(["pending", "in_progress"]))
-        .order_by(Task.created_at.desc())
-        .limit(20)
-    )
+    tasks_query = select(Task).where(Task.status.in_(["pending", "in_progress"]))
+    if role != "iso":
+        tasks_query = tasks_query.where(Task.assigned_to_role == role)
+    tasks_result = await db.execute(tasks_query.order_by(Task.created_at.desc()).limit(20))
     pending_tasks = tasks_result.scalars().all()
 
     events_result = await db.execute(
@@ -40,11 +38,12 @@ async def get_dashboard(
     )
     recent_events = events_result.scalars().all()
 
-    task_count_result = await db.execute(
-        select(func.count())
-        .select_from(Task)
-        .where(Task.assigned_to_role == role, Task.status.in_(["pending", "in_progress"]))
+    task_count_query = select(func.count()).select_from(Task).where(
+        Task.status.in_(["pending", "in_progress"])
     )
+    if role != "iso":
+        task_count_query = task_count_query.where(Task.assigned_to_role == role)
+    task_count_result = await db.execute(task_count_query)
     pending_task_count = task_count_result.scalar() or 0
 
     return {

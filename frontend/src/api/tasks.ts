@@ -1,8 +1,13 @@
 import api from "./client";
 import type { Task } from "@/types";
 
-export async function getIncidentTasks(incidentId: number): Promise<Task[]> {
-  const { data } = await api.get(`/incidents/${incidentId}/tasks`);
+export async function getIncidentTasks(
+  incidentId: number,
+  role?: string
+): Promise<Task[]> {
+  const { data } = await api.get(`/incidents/${incidentId}/tasks`, {
+    params: role ? { role } : undefined,
+  });
   return data;
 }
 
