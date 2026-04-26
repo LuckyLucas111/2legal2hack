@@ -1,23 +1,54 @@
 MOCK_RESPONSES = {
     "kb_chat": (
-        "Based on the uploaded incident documents, the following key findings are relevant:\n\n"
-        "**Technical Assessment:**\n"
-        "The incident involves unauthorized access to internal systems through a compromised USB device. "
-        "Forensic analysis indicates that the device contained malware capable of exfiltrating data from connected systems. "
-        "The affected systems include the internal file server and the CRM database.\n\n"
-        "**Data Protection Impact:**\n"
-        "Personal data of approximately 15,000 customers was potentially exposed, including names, email addresses, "
-        "and account identifiers. No financial data (credit card numbers, bank details) appears to have been accessed "
-        "based on current forensic findings.\n\n"
-        "**Regulatory Implications:**\n"
-        "Under GDPR Art. 33, this incident likely meets the threshold for notification to the supervisory authority "
-        "within 72 hours, as there is a risk to the rights and freedoms of natural persons. "
-        "The NIS2 Directive may also apply if the organization is classified as an essential or important entity.\n\n"
-        "**Recommended Next Steps:**\n"
-        "1. Complete the forensic investigation to determine the exact scope of data exposure\n"
-        "2. Prepare the GDPR Art. 33 notification to the supervisory authority\n"
-        "3. Assess whether Art. 34 notification to affected individuals is required\n"
-        "4. Document all containment measures taken"
+        "Based on the uploaded documents — the **SysAdmin Infrastructure Report**, the **Forensic Analysis Report**, "
+        "and the **GDPR Applicability Assessment** — here is a consolidated summary:\n\n"
+        "---\n\n"
+        "### SysAdmin Infrastructure Report\n\n"
+        "On 2026-04-25 at 03:17 UTC, the monitoring system on **db-prod-02** detected anomalous encryption "
+        "activity consistent with ransomware execution. The server hosts the CRM PostgreSQL database containing "
+        "approximately **120,000 personal records** (names, emails, phone numbers, hashed passwords). "
+        "The attack entry point was an externally facing SSH daemon vulnerable to **CVE-2026-1234**. "
+        "An inbound connection from **198.51.100.42** was confirmed in firewall logs. "
+        "The server was isolated from the network at 03:45 UTC. "
+        "The backup NAS share (\\\\nas-01\\crm-backup) was also within the blast radius but shows no signs of encryption. "
+        "No lateral movement to other network segments has been detected.\n\n"
+        "---\n\n"
+        "### Forensic Analysis Report\n\n"
+        "Initial forensic imaging was completed at 04:30 UTC. Key findings:\n\n"
+        "- **Attack vector:** Exploitation of CVE-2026-1234 in OpenSSH 9.x, allowing unauthenticated remote code execution.\n"
+        "- **Ransomware variant:** Identified as *LockBit 4.0* based on the encryption signature and ransom note format.\n"
+        "- **Scope of encryption:** The PostgreSQL data directory (`/var/lib/postgresql/16/main`) was fully encrypted. "
+        "Transaction logs indicate the encryption began at 03:17 UTC and completed by 03:38 UTC.\n"
+        "- **Data exfiltration indicators:** Netflow analysis shows approximately **2.3 GB of outbound traffic** to "
+        "198.51.100.42 between 02:50 and 03:15 UTC, prior to encryption. This volume is consistent with a partial "
+        "or full dump of the CRM database.\n"
+        "- **Indicators of Compromise (IOCs):**\n"
+        "  - Source IP: 198.51.100.42 (Tor exit node)\n"
+        "  - SHA-256 of ransomware binary: `a]3f8...c9d2` (redacted)\n"
+        "  - Ransom note filename: `RESTORE-FILES.txt`\n"
+        "  - C2 callback domain: `update-service[.]xyz`\n"
+        "- **Containment status:** The compromised server is powered off and preserved for evidence. "
+        "The SSH vulnerability has been patched across all remaining hosts. Firewall rules now block the C2 domain and source IP.\n\n"
+        "---\n\n"
+        "### GDPR Applicability Assessment\n\n"
+        "**Conclusion: GDPR Art. 33 notification is required.**\n\n"
+        "- **Personal data breach (Art. 4(12)):** Confirmed. The encrypted and likely exfiltrated database "
+        "contains personal data of natural persons.\n"
+        "- **Data categories affected:** Names, email addresses, phone numbers, hashed passwords (bcrypt). "
+        "No special category data (Art. 9) identified.\n"
+        "- **Data subjects:** Approximately **120,000 customers** across the EU.\n"
+        "- **Risk to rights and freedoms:** **High**. The combination of contact details and potential password "
+        "exposure (even hashed) creates a credible risk of phishing, credential stuffing, and identity fraud.\n"
+        "- **Art. 33 notification deadline:** 72 hours from awareness — deadline is **2026-04-28 03:17 UTC**.\n"
+        "- **Art. 34 (communication to data subjects):** Likely required given the high risk assessment. "
+        "Recommend preparing individual notifications advising password resets and phishing vigilance.\n"
+        "- **NIS2 applicability:** Confirmed. As a provider of digital infrastructure, the organization qualifies "
+        "as an important entity. The 24-hour early warning deadline is **2026-04-26 03:17 UTC** and "
+        "the 72-hour incident notification deadline is **2026-04-28 03:17 UTC**.\n\n"
+        "---\n\n"
+        "**Key takeaway:** The forensic evidence strongly suggests data exfiltration occurred before encryption. "
+        "This elevates the breach from a pure availability incident to a confidentiality breach, "
+        "making supervisory authority notification mandatory under GDPR Art. 33 and NIS2 Art. 23."
     ),
 
     "report_generation": (
@@ -79,50 +110,50 @@ MOCK_RESPONSES = {
 
     "ai_suggestions": [
         {
-            "title": "Classify incident severity",
-            "description": "The incident severity has not been classified yet. A severity classification is essential for determining the urgency of response actions and regulatory notification timelines. Please assess the severity based on the scope of data exposure, the sensitivity of affected data categories, and the potential impact on affected individuals.",
+            "title": "Document affected systems and network segments",
+            "description": "The SysAdmin should provide a comprehensive inventory of all affected systems, network segments, and any lateral movement detected. This includes server names, IP addresses, services running, and backup status.",
             "recommended_action": "dispatch_task",
-            "target_role": "iso",
+            "target_role": "sysadmin",
             "priority": "critical",
-            "task_type": "assessment",
-        },
-        {
-            "title": "Assess GDPR applicability",
-            "description": "It has not been determined whether GDPR applies to this incident. Given the potential involvement of personal data, the DPO should assess whether GDPR Art. 4(12) breach criteria are met and document the assessment rationale.",
-            "recommended_action": "dispatch_task",
-            "target_role": "dpo",
-            "priority": "critical",
-            "task_type": "assessment",
-        },
-        {
-            "title": "Identify affected data categories",
-            "description": "The specific categories of personal data affected by this incident need to be identified and documented. This information is required for the GDPR Art. 33 notification and for assessing the risk to data subjects under Art. 34.",
-            "recommended_action": "dispatch_task",
-            "target_role": "dpo",
-            "priority": "high",
-            "task_type": "info_request",
-        },
-        {
-            "title": "Determine number of affected individuals",
-            "description": "The number of individuals whose personal data may have been compromised needs to be determined. This is a mandatory field in the GDPR Art. 33 notification to the supervisory authority.",
-            "recommended_action": "dispatch_task",
-            "target_role": "dpo",
-            "priority": "high",
             "task_type": "info_request",
         },
         {
             "title": "Provide technical forensic findings",
-            "description": "A detailed technical report of the forensic investigation findings is needed. This should include: attack vector analysis, indicators of compromise (IOCs), affected systems inventory, data flow analysis, and confirmation of containment effectiveness.",
+            "description": "A detailed technical report of the forensic investigation findings is needed. This should include: attack vector analysis, indicators of compromise (IOCs), affected systems inventory, data exfiltration evidence, and confirmation of containment effectiveness.",
             "recommended_action": "dispatch_task",
             "target_role": "itsec",
-            "priority": "high",
+            "priority": "critical",
             "task_type": "report",
         },
         {
-            "title": "Assess NIS2 applicability",
-            "description": "Determine whether the NIS2 Directive applies to this incident based on the organization's classification as an essential or important entity. If applicable, the 24-hour early warning and 72-hour notification deadlines must be tracked.",
+            "title": "Assess GDPR applicability and notifiability",
+            "description": "The DPO should assess whether GDPR Art. 4(12) breach criteria are met, identify affected data categories and the number of affected individuals, and evaluate whether the breach is likely to result in a risk to natural persons' rights and freedoms under Art. 33.",
+            "recommended_action": "dispatch_task",
+            "target_role": "dpo",
+            "priority": "critical",
+            "task_type": "assessment",
+        },
+        {
+            "title": "Classify legal risk and regulatory exposure",
+            "description": "Legal should classify the overall risk level of this data breach, assess potential regulatory fine exposure under GDPR Art. 83, and evaluate whether Art. 34 communication to affected data subjects is required given the nature and scope of the compromised data.",
+            "recommended_action": "dispatch_task",
+            "target_role": "legal",
+            "priority": "high",
+            "task_type": "assessment",
+        },
+        {
+            "title": "Assess NIS2 applicability and track deadlines",
+            "description": "Determine whether the NIS2 Directive applies to this incident based on the organization's classification as an essential or important entity. If applicable, the 24-hour early warning and 72-hour notification deadlines must be tracked and the CSIRT must be notified.",
             "recommended_action": "dispatch_task",
             "target_role": "compliance",
+            "priority": "high",
+            "task_type": "assessment",
+        },
+        {
+            "title": "Make supervisory authority notification decision",
+            "description": "Based on the DPO assessment, legal risk classification, and forensic findings, the CISO should make the final decision on whether to notify the supervisory authority under GDPR Art. 33 and/or submit a NIS2 incident notification.",
+            "recommended_action": "dispatch_task",
+            "target_role": "ciso",
             "priority": "high",
             "task_type": "assessment",
         },
