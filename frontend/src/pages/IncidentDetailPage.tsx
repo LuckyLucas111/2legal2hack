@@ -1,14 +1,19 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useRole } from "@/context/RoleContext";
-import { getIncident, updatePhase } from "@/api/incidents";
+import { getIncident } from "@/api/incidents";
 import { getIncidentTasks, createTask, updateTask } from "@/api/tasks";
+import {
+  getSuggestions,
+  generateSuggestions,
+  updateSuggestion,
+} from "@/api/suggestions";
 import { getTimeline } from "@/api/dashboard";
 import { getDocuments } from "@/api/documents";
 import type { DocumentInfo } from "@/api/documents";
-import type { Incident, Task, TimelineEvent, Role } from "@/types";
+import type { Incident, Task, TimelineEvent, Role, Suggestion } from "@/types";
 import { ROLE_CONFIG } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,14 +25,12 @@ import CountdownTimer from "@/components/dashboard/CountdownTimer";
 import DocumentUpload from "@/components/kb/DocumentUpload";
 import DocumentList from "@/components/kb/DocumentList";
 import KBChatInterface from "@/components/kb/KBChatInterface";
-import SuggestionList from "@/components/suggestions/SuggestionList";
 import ReportEditor from "@/components/reports/ReportEditor";
 import {
   Clock,
   CheckCircle2,
   Send,
   Plus,
-  ArrowRight,
   MessageSquare,
   Paperclip,
   FileText,
@@ -40,27 +43,14 @@ import {
   HelpCircle,
   Search,
   Circle,
+  Sparkles,
+  Loader2,
+  Check,
+  Cpu,
+  Lightbulb,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-
-const PHASES = [
-  "draft",
-  "triage",
-  "assessment",
-  "decision",
-  "notification",
-  "closed",
-] as const;
-
-const phaseColors: Record<string, string> = {
-  draft: "bg-gray-500",
-  triage: "bg-yellow-500",
-  assessment: "bg-blue-500",
-  decision: "bg-purple-500",
-  notification: "bg-orange-500",
-  closed: "bg-green-600",
-};
 
 const severityConfig: Record<string, { class: string }> = {
   critical: { class: "bg-red-600 text-white border-transparent" },
@@ -92,7 +82,6 @@ const eventTypeColors: Record<string, string> = {
   suggestion_updated: "bg-purple-400",
   document_uploaded: "bg-amber-500",
   document_deleted: "bg-amber-400",
-  phase_advanced: "bg-cyan-500",
   incident_created: "bg-red-500",
 };
 
@@ -104,7 +93,7 @@ export default function IncidentDetailPage() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "tasks" | "timeline" | "kb" | "suggestions" | "report"
+    "overview" | "tasks" | "timeline" | "kb" | "report"
   >("overview");
   const [loading, setLoading] = useState(true);
 
@@ -135,8 +124,6 @@ export default function IncidentDetailPage() {
       </div>
     );
 
-  const currentPhaseIdx = PHASES.indexOf(incident.phase as (typeof PHASES)[number]);
-  const nextPhase = currentPhaseIdx < PHASES.length - 1 ? PHASES[currentPhaseIdx + 1] : null;
   const pendingTaskCount = tasks.filter((t) => t.status === "pending").length;
 
   const sevCfg = incident.severity ? severityConfig[incident.severity.toLowerCase()] : null;
@@ -146,7 +133,6 @@ export default function IncidentDetailPage() {
     tasks: "Tasks",
     timeline: "Timeline",
     kb: "Knowledge Base",
-    suggestions: "Suggestions",
     report: "Report",
   };
 
@@ -166,29 +152,12 @@ export default function IncidentDetailPage() {
             )}
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <Badge
-              className={`${phaseColors[incident.phase]} text-white`}
-            >
-              {incident.phase}
-            </Badge>
             <span className="text-sm text-muted-foreground">
               Created{" "}
               {format(new Date(incident.created_at), "MMM d, yyyy HH:mm")}
             </span>
           </div>
         </div>
-        {role === "iso" && nextPhase && (
-          <Button
-            onClick={async () => {
-              await updatePhase(incident.id, nextPhase);
-              toast.success(`Phase advanced to ${nextPhase}`);
-              reload();
-            }}
-          >
-            Advance to {nextPhase}
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        )}
       </div>
 
       {(incident.gdpr_deadline || incident.nis2_early_warning_deadline || incident.nis2_report_deadline) && (
@@ -213,37 +182,9 @@ export default function IncidentDetailPage() {
         </Card>
       )}
 
-      {/* Phase progress */}
-      <div className="space-y-1">
-        <div className="flex gap-1">
-          {PHASES.map((phase, idx) => (
-            <div
-              key={phase}
-              className={`flex-1 h-2 rounded-full transition-colors ${
-                idx <= currentPhaseIdx ? phaseColors[phase] : "bg-muted"
-              }`}
-            />
-          ))}
-        </div>
-        <div className="flex justify-between px-1">
-          {PHASES.map((phase, idx) => (
-            <span
-              key={phase}
-              className={`text-[10px] ${
-                idx <= currentPhaseIdx
-                  ? "text-foreground font-medium"
-                  : "text-muted-foreground"
-              }`}
-            >
-              {phase}
-            </span>
-          ))}
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="flex border-b">
-        {(["overview", "tasks", "timeline", "kb", "suggestions", "report"] as const).map((tab) => (
+        {(["overview", "tasks", "timeline", "kb", "report"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -285,13 +226,6 @@ export default function IncidentDetailPage() {
         <KnowledgeBaseTab
           incidentId={incident.id}
           documents={documents}
-          onReload={reload}
-        />
-      )}
-      {activeTab === "suggestions" && (
-        <SuggestionList
-          incidentId={incident.id}
-          role={role}
           onReload={reload}
         />
       )}
@@ -441,6 +375,51 @@ function TasksTab({
   const [respondingId, setRespondingId] = useState<number | null>(null);
   const [responseText, setResponseText] = useState("");
   const [responseFile, setResponseFile] = useState<File | null>(null);
+  const [drafts, setDrafts] = useState<Suggestion[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(true);
+  const [generatingDrafts, setGeneratingDrafts] = useState(false);
+  const autoGeneratedForIncident = useRef<number | null>(null);
+
+  const loadDrafts = useCallback(async (autoGenerate = false) => {
+    setDraftsLoading(true);
+    const shouldAttemptAutoGenerate =
+      autoGenerate && autoGeneratedForIncident.current !== incident.id;
+    if (shouldAttemptAutoGenerate) {
+      autoGeneratedForIncident.current = incident.id;
+    }
+
+    try {
+      let data = await getSuggestions(incident.id);
+      let pending = data.filter((s) => s.status === "pending");
+
+      if (
+        shouldAttemptAutoGenerate &&
+        pending.length === 0
+      ) {
+        setGeneratingDrafts(true);
+        try {
+          await generateSuggestions(incident.id);
+          data = await getSuggestions(incident.id);
+          pending = data.filter((s) => s.status === "pending");
+        } finally {
+          setGeneratingDrafts(false);
+        }
+      }
+
+      setDrafts(pending);
+    } finally {
+      setDraftsLoading(false);
+    }
+  }, [incident.id]);
+
+  useEffect(() => {
+    if (role === "iso") {
+      loadDrafts(true);
+    } else {
+      setDrafts([]);
+      setDraftsLoading(false);
+    }
+  }, [loadDrafts, role]);
 
   async function handleInfoRequest(e: React.FormEvent) {
     e.preventDefault();
@@ -471,6 +450,17 @@ function TasksTab({
     onReload();
   }
 
+  async function handleDraftAction(suggestionId: number, status: string) {
+    await updateSuggestion(incident.id, suggestionId, status);
+    if (status === "dispatched") {
+      toast.success("Task signed off and dispatched");
+      onReload();
+    } else {
+      toast.success("Task draft dismissed");
+    }
+    await loadDrafts(false);
+  }
+
   async function handleRespond(taskId: number) {
     await updateTask(
       incident.id,
@@ -492,16 +482,18 @@ function TasksTab({
       {(role === "iso" || role === "ciso") && (
         <div className="flex justify-end gap-2">
           {role === "iso" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setShowInfoRequest(!showInfoRequest);
-                setShowCreate(false);
-              }}
-            >
-              <MessageSquare className="h-4 w-4 mr-1" /> Request Information
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setShowInfoRequest(!showInfoRequest);
+                  setShowCreate(false);
+                }}
+              >
+                <MessageSquare className="h-4 w-4 mr-1" /> Request Information
+              </Button>
+            </>
           )}
           <Button
             size="sm"
@@ -608,6 +600,36 @@ function TasksTab({
             </form>
           </CardContent>
         </Card>
+      )}
+
+      {role === "iso" && (draftsLoading || generatingDrafts || drafts.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-purple-500" />
+            <h3 className="text-sm font-medium">Task Drafts</h3>
+            {drafts.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {drafts.length}
+              </Badge>
+            )}
+          </div>
+          {draftsLoading || generatingDrafts ? (
+            <Card>
+              <CardContent className="p-4 flex items-center justify-center text-muted-foreground">
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {generatingDrafts ? "Generating task drafts..." : "Loading drafts..."}
+              </CardContent>
+            </Card>
+          ) : (
+            drafts.map((draft) => (
+              <TaskDraftCard
+                key={draft.id}
+                draft={draft}
+                onAction={handleDraftAction}
+              />
+            ))
+          )}
+        </div>
       )}
 
       {tasks.length === 0 ? (
@@ -790,6 +812,85 @@ function TasksTab({
         })
       )}
     </div>
+  );
+}
+
+function TaskDraftCard({
+  draft,
+  onAction,
+}: {
+  draft: Suggestion;
+  onAction: (id: number, status: string) => void;
+}) {
+  const SourceIcon = draft.suggestion_type === "ai_generated" ? Cpu : Lightbulb;
+  const TypeIcon = draft.task_type
+    ? taskTypeIcon[draft.task_type] ?? ClipboardList
+    : ClipboardList;
+  const roleColor = draft.target_role
+    ? ROLE_CONFIG[draft.target_role]?.color ?? "bg-gray-500"
+    : "bg-gray-500";
+
+  return (
+    <Card className="border-l-4 border-l-purple-500">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <SourceIcon className="h-4 w-4 text-purple-500 shrink-0" />
+              <span className="font-medium">{draft.title}</span>
+              <Badge variant="outline" className="text-xs">
+                draft
+              </Badge>
+              {draft.task_type && (
+                <Badge variant="outline" className="text-xs">
+                  <TypeIcon className="h-3 w-3 mr-1" />
+                  {draft.task_type}
+                </Badge>
+              )}
+              {draft.priority && (
+                <Badge className={`text-xs border ${priorityConfig[draft.priority] ?? ""}`}>
+                  {draft.priority}
+                </Badge>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground mb-2 prose prose-sm max-w-none dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft.description}</ReactMarkdown>
+            </div>
+            {draft.target_role && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className={`inline-block h-2 w-2 rounded-full ${roleColor}`} />
+                <span>
+                  Target role{" "}
+                  <span className="font-medium">
+                    {ROLE_CONFIG[draft.target_role]?.label ?? draft.target_role}
+                  </span>
+                </span>
+                <span className="text-muted-foreground/50">
+                  {format(new Date(draft.created_at), "MMM d, HH:mm")}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => onAction(draft.id, "dispatched")}
+            >
+              <Check className="h-3 w-3 mr-1" />
+              Sign Off
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAction(draft.id, "dismissed")}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -23,15 +23,6 @@ import {
   Circle,
 } from "lucide-react";
 
-const phaseColors: Record<string, string> = {
-  draft: "bg-gray-500",
-  triage: "bg-yellow-500",
-  assessment: "bg-blue-500",
-  decision: "bg-purple-500",
-  notification: "bg-orange-500",
-  closed: "bg-green-600",
-};
-
 const severityConfig: Record<string, { border: string; icon: string }> = {
   critical: { border: "border-l-red-600", icon: "text-red-600" },
   high: { border: "border-l-orange-500", icon: "text-orange-500" },
@@ -161,11 +152,6 @@ export default function DashboardPage() {
                             className={`h-4 w-4 ${sev ? sev.icon : "text-orange-500"}`}
                           />
                           <span className="font-semibold">{incident.title}</span>
-                          <Badge
-                            className={`${phaseColors[incident.phase]} text-white text-xs`}
-                          >
-                            {incident.phase}
-                          </Badge>
                           {incident.severity && (
                             <Badge
                               className={`text-xs ${severityBadgeClass[incident.severity] ?? ""}`}

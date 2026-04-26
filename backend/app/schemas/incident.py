@@ -20,10 +20,6 @@ class IncidentUpdate(BaseModel):
     potential_harm: str | None = None
 
 
-class PhaseUpdate(BaseModel):
-    phase: str
-
-
 class NotifiabilityAssessment(BaseModel):
     notifiability_assessment: str
     gdpr_applicable: bool | None = None
@@ -46,7 +42,6 @@ class IncidentResponse(BaseModel):
     id: int
     title: str
     description: str
-    phase: str
     severity: str | None
     gdpr_applicable: bool | None
     nis2_applicable: bool | None

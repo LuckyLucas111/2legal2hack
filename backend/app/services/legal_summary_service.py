@@ -38,7 +38,7 @@ async def generate_legal_summary(db: AsyncSession, incident_id: int) -> str:
     sections = [
         f"**Incident:** {incident.title}",
         f"**Description:** {incident.description}",
-        f"**Phase:** {incident.phase} | **Severity:** {incident.severity or 'not set'}",
+        f"**Severity:** {incident.severity or 'not set'}",
     ]
 
     if incident.gdpr_applicable is not None:

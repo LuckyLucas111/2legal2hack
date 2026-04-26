@@ -43,7 +43,6 @@ async def _incident_context(db: AsyncSession, incident: Incident) -> str:
     missing_section = "\n".join(missing) if missing else "(all key fields are filled)"
 
     return f"""Incident: {incident.title}
-Phase: {incident.phase}
 Severity: {incident.severity or 'not set'}
 Description: {incident.description[:500]}
 GDPR Applicable: {incident.gdpr_applicable}
@@ -93,7 +92,7 @@ Return a JSON array where each element has:
 - "priority": one of "critical", "high", "medium", "low"
 - "task_type": one of "assessment", "report", "notification", "info_request", "review", "general"
 
-Prioritize missing data that blocks the next workflow phase. Do not duplicate tasks that already exist or are already suggested by rules.
+Prioritize missing data that blocks notification and reporting decisions. Do not duplicate tasks that already exist or are already suggested by rules.
 Only return the JSON array, no other text."""
 
     try:

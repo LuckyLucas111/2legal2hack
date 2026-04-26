@@ -8,14 +8,6 @@ export type Role =
   | "communications"
   | "compliance";
 
-export type Phase =
-  | "draft"
-  | "triage"
-  | "assessment"
-  | "decision"
-  | "notification"
-  | "closed";
-
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskType =
   | "assessment"
@@ -35,7 +27,6 @@ export interface Incident {
   id: number;
   title: string;
   description: string;
-  phase: Phase;
   severity: string | null;
   gdpr_applicable: boolean | null;
   nis2_applicable: boolean | null;

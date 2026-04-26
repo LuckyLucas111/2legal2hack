@@ -9,7 +9,6 @@ from app.schemas.incident import (
     IncidentCreate,
     IncidentUpdate,
     IncidentResponse,
-    PhaseUpdate,
     NotifiabilityAssessment,
     RiskClassification,
     NotificationDecision,
@@ -17,8 +16,6 @@ from app.schemas.incident import (
 from app.services.timeline_service import log_event
 
 router = APIRouter(prefix="/api/v1/incidents", tags=["incidents"])
-
-VALID_PHASES = ["draft", "triage", "assessment", "decision", "notification", "closed"]
 
 
 @router.get("/", response_model=list[IncidentResponse])
@@ -84,37 +81,6 @@ async def update_incident(
         db, incident_id, "incident_updated",
         f"Incident updated by {x_role}: {', '.join(update_data.keys())}",
         x_role,
-    )
-    await db.commit()
-    await db.refresh(incident)
-    return incident
-
-
-@router.patch("/{incident_id}/phase", response_model=IncidentResponse)
-async def update_phase(
-    incident_id: int,
-    data: PhaseUpdate,
-    db: AsyncSession = Depends(get_db),
-    x_role: str = Header(default="iso"),
-):
-    if x_role != "iso":
-        raise HTTPException(403, "Only ISO can change incident phase")
-    if data.phase not in VALID_PHASES:
-        raise HTTPException(400, f"Invalid phase. Must be one of: {VALID_PHASES}")
-
-    incident = await db.get(Incident, incident_id)
-    if not incident:
-        raise HTTPException(404, "Incident not found")
-
-    old_phase = incident.phase
-    incident.phase = data.phase
-    incident.updated_at = datetime.utcnow()
-
-    await log_event(
-        db, incident_id, "phase_change",
-        f"Phase changed from '{old_phase}' to '{data.phase}' by ISO",
-        "iso",
-        {"old_phase": old_phase, "new_phase": data.phase},
     )
     await db.commit()
     await db.refresh(incident)

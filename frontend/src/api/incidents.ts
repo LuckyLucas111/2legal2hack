@@ -28,14 +28,6 @@ export async function updateIncident(
   return data;
 }
 
-export async function updatePhase(
-  id: number,
-  phase: string
-): Promise<Incident> {
-  const { data } = await api.patch(`/incidents/${id}/phase`, { phase });
-  return data;
-}
-
 export async function submitNotifiability(
   id: number,
   payload: {
