@@ -110,52 +110,104 @@ MOCK_RESPONSES = {
 
     "ai_suggestions": [
         {
-            "title": "Document affected systems and network segments",
-            "description": "The SysAdmin should provide a comprehensive inventory of all affected systems, network segments, and any lateral movement detected. This includes server names, IP addresses, services running, and backup status.",
+            "title": "Executive notification and notification decision",
+            "description": (
+                "Please review all assessments and make the following decisions:\n\n"
+                "1. Board notification: Inform the executive board if the incident severity and potential impact warrant escalation to senior leadership\n"
+                "2. Notification decision: Based on the DPO assessment, legal analysis, and forensic findings, decide whether supervisory authority notification under GDPR Art. 33 and/or NIS2 incident reporting is required"
+            ),
             "recommended_action": "dispatch_task",
-            "target_role": "sysadmin",
-            "priority": "critical",
-            "task_type": "info_request",
-        },
-        {
-            "title": "Provide technical forensic findings",
-            "description": "A detailed technical report of the forensic investigation findings is needed. This should include: attack vector analysis, indicators of compromise (IOCs), affected systems inventory, data exfiltration evidence, and confirmation of containment effectiveness.",
-            "recommended_action": "dispatch_task",
-            "target_role": "itsec",
-            "priority": "critical",
-            "task_type": "report",
-        },
-        {
-            "title": "Assess GDPR applicability and notifiability",
-            "description": "The DPO should assess whether GDPR Art. 4(12) breach criteria are met, identify affected data categories and the number of affected individuals, and evaluate whether the breach is likely to result in a risk to natural persons' rights and freedoms under Art. 33.",
-            "recommended_action": "dispatch_task",
-            "target_role": "dpo",
-            "priority": "critical",
-            "task_type": "assessment",
-        },
-        {
-            "title": "Classify legal risk and regulatory exposure",
-            "description": "Legal should classify the overall risk level of this data breach, assess potential regulatory fine exposure under GDPR Art. 83, and evaluate whether Art. 34 communication to affected data subjects is required given the nature and scope of the compromised data.",
-            "recommended_action": "dispatch_task",
-            "target_role": "legal",
+            "target_role": "ciso",
             "priority": "high",
             "task_type": "assessment",
         },
         {
-            "title": "Assess NIS2 applicability and track deadlines",
-            "description": "Determine whether the NIS2 Directive applies to this incident based on the organization's classification as an essential or important entity. If applicable, the 24-hour early warning and 72-hour notification deadlines must be tracked and the CSIRT must be notified.",
+            "title": "Prepare stakeholder and public communications",
+            "description": (
+                "Please prepare communication strategies for this incident:\n\n"
+                "1. Customer notification: Prepare draft communications to inform affected customers about the breach, including what data was affected, what measures have been taken, and recommended protective actions (e.g., password resets)\n"
+                "2. Public communication: If required, draft a public statement or press release addressing the incident transparently while protecting ongoing investigation details"
+            ),
+            "recommended_action": "dispatch_task",
+            "target_role": "communications",
+            "priority": "high",
+            "task_type": "info_request",
+        },
+        {
+            "title": "Compliance review and process improvement",
+            "description": (
+                "Please review the incident from a compliance perspective:\n\n"
+                "1. Identify internal regulatory violations: Were any internal policies, codes of conduct, or compliance guidelines breached?\n"
+                "2. Root cause analysis: How could this incident happen? Evaluate whether failures in the Compliance Management System (CMS), internal monitoring, or control mechanisms contributed\n"
+                "3. Improvement recommendations: Based on the IT Security findings, what technical and organizational measures should be improved to prevent recurrence?\n"
+                "4. Incident handling process: Review the current incident response procedures and identify any gaps or compliance violations that occurred during the handling of this incident"
+            ),
             "recommended_action": "dispatch_task",
             "target_role": "compliance",
             "priority": "high",
             "task_type": "assessment",
         },
         {
-            "title": "Make supervisory authority notification decision",
-            "description": "Based on the DPO assessment, legal risk classification, and forensic findings, the CISO should make the final decision on whether to notify the supervisory authority under GDPR Art. 33 and/or submit a NIS2 incident notification.",
+            "title": "Legal risk classification and regulatory analysis",
+            "description": (
+                "Please conduct a comprehensive legal assessment covering:\n\n"
+                "1. BSIG / NIS2 Directive: Assess reporting obligations under the German IT Security Act (BSIG) and the NIS2 Directive, including deadlines and required content\n"
+                "2. Data protection law: Conduct detailed research on applicable data protection regulations, Art. 33/34 GDPR notification requirements, and potential fines under Art. 83 GDPR\n"
+                "3. AML violations (GWG): If the organization is a financial institution, assess whether anti-money laundering (GWG) reporting obligations are triggered\n"
+                "4. Employment law: Evaluate requirements for labor law measures (e.g., involvement of works council/Betriebsrat, disciplinary actions against involved employees)\n"
+                "5. Internal investigation / criminal law: Assess whether to initiate an internal investigation and/or file a criminal complaint (e.g., under §§ 202a, 303a, 303b StGB)\n"
+                "6. Liability and contractual obligations: Evaluate potential liability towards affected data subjects and contractual breach implications with customers and partners"
+            ),
             "recommended_action": "dispatch_task",
-            "target_role": "ciso",
+            "target_role": "legal",
             "priority": "high",
             "task_type": "assessment",
+        },
+        {
+            "title": "GDPR applicability and notification assessment",
+            "description": (
+                "Please assess the data protection implications of this incident:\n\n"
+                "1. Is the scope of the GDPR opened? Determine whether personal data of EU data subjects is affected and whether GDPR Art. 4(12) breach criteria are met\n"
+                "2. Identify notification obligations: which supervisory authorities must be notified (lead authority, affected member state authorities)?\n"
+                "3. Conduct a Data Protection Impact Assessment (DPIA) per Art. 35 GDPR — evaluate the nature, scope, context, and purposes of the compromised processing, and assess the risk to data subjects' rights and freedoms\n"
+                "4. Document affected data categories, number of individuals, and potential harm assessment"
+            ),
+            "recommended_action": "dispatch_task",
+            "target_role": "dpo",
+            "priority": "critical",
+            "task_type": "assessment",
+        },
+        {
+            "title": "Forensic analysis and data impact assessment",
+            "description": (
+                "Please conduct a forensic investigation and answer the following questions:\n\n"
+                "1. Which data is affected? Identify all compromised databases, file shares, and data stores\n"
+                "2. What is the scope of the data breach? Determine the number of affected records and data subjects\n"
+                "3. Was data exfiltrated externally? Analyze netflow logs, DNS queries, and outbound traffic for evidence of data leaving the network\n"
+                "4. Identify the attack vector and document all indicators of compromise (IOCs)\n"
+                "5. Determine the timeline of the attack (initial access, lateral movement, data access, encryption)\n"
+                "6. Confirm containment effectiveness and verify no persistent backdoors remain"
+            ),
+            "recommended_action": "dispatch_task",
+            "target_role": "itsec",
+            "priority": "critical",
+            "task_type": "report",
+        },
+        {
+            "title": "Immediate containment and infrastructure documentation",
+            "description": (
+                "Please perform the following containment and documentation tasks:\n\n"
+                "1. Lock compromised user accounts and revoke active sessions\n"
+                "2. Isolate all affected machines from the network\n"
+                "3. Audit and block USB access system-wide on affected segments\n"
+                "4. Stop any ongoing data exfiltration (block outbound connections to known C2 addresses)\n"
+                "5. Document all affected systems, network segments, IP addresses, and services\n"
+                "6. Verify backup integrity and confirm backups are not compromised"
+            ),
+            "recommended_action": "dispatch_task",
+            "target_role": "sysadmin",
+            "priority": "critical",
+            "task_type": "info_request",
         },
     ],
 
