@@ -3,7 +3,12 @@ from pydantic import BaseModel
 
 
 class SuggestionUpdate(BaseModel):
-    status: str
+    status: str | None = None
+    title: str | None = None
+    description: str | None = None
+    target_role: str | None = None
+    priority: str | None = None
+    task_type: str | None = None
 
 
 class SuggestionResponse(BaseModel):

@@ -10,6 +10,7 @@ import {
   generateSuggestions,
   updateSuggestion,
 } from "@/api/suggestions";
+import type { SuggestionUpdatePayload } from "@/api/suggestions";
 import { getTimeline } from "@/api/dashboard";
 import { getDocuments } from "@/api/documents";
 import type { DocumentInfo } from "@/api/documents";
@@ -450,9 +451,12 @@ function TasksTab({
     onReload();
   }
 
-  async function handleDraftAction(suggestionId: number, status: string) {
-    await updateSuggestion(incident.id, suggestionId, status);
-    if (status === "dispatched") {
+  async function handleDraftAction(
+    suggestionId: number,
+    payload: SuggestionUpdatePayload
+  ) {
+    await updateSuggestion(incident.id, suggestionId, payload);
+    if (payload.status === "dispatched") {
       toast.success("Task signed off and dispatched");
       onReload();
     } else {
@@ -820,15 +824,19 @@ function TaskDraftCard({
   onAction,
 }: {
   draft: Suggestion;
-  onAction: (id: number, status: string) => void;
+  onAction: (id: number, payload: SuggestionUpdatePayload) => void;
 }) {
   const SourceIcon = draft.suggestion_type === "ai_generated" ? Cpu : Lightbulb;
-  const TypeIcon = draft.task_type
-    ? taskTypeIcon[draft.task_type] ?? ClipboardList
-    : ClipboardList;
-  const roleColor = draft.target_role
-    ? ROLE_CONFIG[draft.target_role]?.color ?? "bg-gray-500"
+  const [title, setTitle] = useState(draft.title);
+  const [description, setDescription] = useState(draft.description);
+  const [targetRole, setTargetRole] = useState<Role>(
+    (draft.target_role as Role | null) ?? "dpo"
+  );
+  const [taskType, setTaskType] = useState(draft.task_type ?? "general");
+  const roleColor = targetRole
+    ? ROLE_CONFIG[targetRole]?.color ?? "bg-gray-500"
     : "bg-gray-500";
+  const roles = Object.keys(ROLE_CONFIG) as Role[];
 
   return (
     <Card className="border-l-4 border-l-purple-500">
@@ -837,44 +845,79 @@ function TaskDraftCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <SourceIcon className="h-4 w-4 text-purple-500 shrink-0" />
-              <span className="font-medium">{draft.title}</span>
               <Badge variant="outline" className="text-xs">
                 draft
               </Badge>
-              {draft.task_type && (
-                <Badge variant="outline" className="text-xs">
-                  <TypeIcon className="h-3 w-3 mr-1" />
-                  {draft.task_type}
-                </Badge>
-              )}
               {draft.priority && (
                 <Badge className={`text-xs border ${priorityConfig[draft.priority] ?? ""}`}>
                   {draft.priority}
                 </Badge>
               )}
             </div>
-            <div className="text-sm text-muted-foreground mb-2 prose prose-sm max-w-none dark:prose-invert [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft.description}</ReactMarkdown>
-            </div>
-            {draft.target_role && (
+            <div className="space-y-3">
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Task title"
+                required
+              />
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description (optional)"
+                rows={3}
+              />
+              <div className="flex gap-3">
+                <Select
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value as Role)}
+                >
+                  {roles.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_CONFIG[r].label}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value)}
+                >
+                  <option value="general">General</option>
+                  <option value="assessment">Assessment</option>
+                  <option value="report">Report</option>
+                  <option value="notification">Notification</option>
+                  <option value="info_request">Info Request</option>
+                  <option value="review">Review</option>
+                </Select>
+              </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className={`inline-block h-2 w-2 rounded-full ${roleColor}`} />
                 <span>
-                  Target role{" "}
+                  Drafted for{" "}
                   <span className="font-medium">
-                    {ROLE_CONFIG[draft.target_role]?.label ?? draft.target_role}
+                    {ROLE_CONFIG[targetRole]?.label ?? targetRole}
                   </span>
                 </span>
                 <span className="text-muted-foreground/50">
                   {format(new Date(draft.created_at), "MMM d, HH:mm")}
                 </span>
               </div>
-            )}
+            </div>
           </div>
           <div className="flex gap-1 shrink-0">
             <Button
               size="sm"
-              onClick={() => onAction(draft.id, "dispatched")}
+              onClick={() =>
+                onAction(draft.id, {
+                  status: "dispatched",
+                  title: title.trim(),
+                  description,
+                  target_role: targetRole,
+                  task_type: taskType,
+                  priority: draft.priority ?? "medium",
+                })
+              }
+              disabled={!title.trim()}
             >
               <Check className="h-3 w-3 mr-1" />
               Sign Off
@@ -882,7 +925,7 @@ function TaskDraftCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => onAction(draft.id, "dismissed")}
+              onClick={() => onAction(draft.id, { status: "dismissed" })}
             >
               <X className="h-3 w-3 mr-1" />
               Dismiss
