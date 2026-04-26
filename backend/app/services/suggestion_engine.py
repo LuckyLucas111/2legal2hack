@@ -1,11 +1,8 @@
-import json
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Incident, Task, Suggestion
 from app.services.workflow_rules import generate_rule_based_suggestions
-from app.config import settings
 from app.services.mock_responses import MOCK_RESPONSES
 
 FIELD_ROLE_MAP = {
@@ -64,8 +61,16 @@ Missing data fields that still need to be filled:
 async def generate_ai_suggestions(
     db: AsyncSession, incident: Incident, rule_suggestions: list[dict]
 ) -> list[dict]:
+    existing_result = await db.execute(
+        select(Suggestion.title).where(Suggestion.incident_id == incident.id)
+    )
+    existing_titles = {row[0] for row in existing_result.all()}
     rule_titles = {s["title"] for s in rule_suggestions}
-    return [s for s in MOCK_RESPONSES["ai_suggestions"] if s["title"] not in rule_titles]
+    return [
+        s
+        for s in MOCK_RESPONSES["ai_suggestions"]
+        if s["title"] not in rule_titles and s["title"] not in existing_titles
+    ]
 
 
 async def generate_suggestions(db: AsyncSession, incident_id: int) -> list[Suggestion]:

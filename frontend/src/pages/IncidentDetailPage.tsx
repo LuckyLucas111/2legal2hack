@@ -395,7 +395,7 @@ function TasksTab({
 
       if (
         shouldAttemptAutoGenerate &&
-        pending.length === 0
+        data.length === 0
       ) {
         setGeneratingDrafts(true);
         try {
@@ -496,6 +496,32 @@ function TasksTab({
                 }}
               >
                 <MessageSquare className="h-4 w-4 mr-1" /> Request Information
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  setGeneratingDrafts(true);
+                  try {
+                    const created = await generateSuggestions(incident.id);
+                    if (created.length > 0) {
+                      toast.success("Task drafts generated");
+                    } else {
+                      toast.info("No new task drafts available");
+                    }
+                    await loadDrafts(false);
+                  } finally {
+                    setGeneratingDrafts(false);
+                  }
+                }}
+                disabled={generatingDrafts || draftsLoading}
+              >
+                {generatingDrafts ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                Generate Task Drafts
               </Button>
             </>
           )}
