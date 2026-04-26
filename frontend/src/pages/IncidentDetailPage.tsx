@@ -83,6 +83,7 @@ const eventTypeColors: Record<string, string> = {
   suggestion_updated: "bg-purple-400",
   document_uploaded: "bg-amber-500",
   document_deleted: "bg-amber-400",
+  overview_updated: "bg-emerald-500",
   incident_created: "bg-red-500",
 };
 
@@ -263,6 +264,44 @@ function AssessmentRow({
   );
 }
 
+function getExecutiveSummary(incident: Incident) {
+  const hasAssessment =
+    incident.gdpr_applicable !== null ||
+    incident.nis2_applicable !== null ||
+    Boolean(
+      incident.notifiability_assessment ||
+        incident.risk_classification ||
+        incident.notification_decision ||
+        incident.individuals_affected
+    );
+
+  if (!hasAssessment) return null;
+
+  const summaryParts = [
+    incident.individuals_affected
+      ? `${incident.individuals_affected} individuals affected`
+      : null,
+    incident.gdpr_applicable === null
+      ? "GDPR pending"
+      : incident.gdpr_applicable
+        ? "GDPR applies"
+        : "GDPR not applicable",
+    incident.nis2_applicable === null
+      ? "NIS2 pending"
+      : incident.nis2_applicable
+        ? "NIS2 applies"
+        : "NIS2 not applicable",
+    incident.risk_classification
+      ? `risk classified as ${incident.risk_classification}`
+      : "risk classification pending",
+    incident.notification_decision
+      ? `notification decision: ${incident.notification_decision}`
+      : "notification decision pending",
+  ].filter(Boolean);
+
+  return `${incident.title}: ${summaryParts.join("; ")}.`;
+}
+
 function OverviewTab({ incident }: { incident: Incident }) {
   const gdprVal =
     incident.gdpr_applicable === null
@@ -276,79 +315,93 @@ function OverviewTab({ incident }: { incident: Incident }) {
       : incident.nis2_applicable
         ? "Yes"
         : "No";
+  const executiveSummary = getExecutiveSummary(incident);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Description</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">{incident.description}</p>
-          {(incident.data_categories || incident.individuals_affected || incident.potential_harm) && (
-            <div className="mt-4 pt-4 border-t space-y-2">
-              {incident.data_categories && (
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Data categories: </span>
-                  <span className="font-medium">{Array.isArray(incident.data_categories) ? incident.data_categories.join(", ") : incident.data_categories}</span>
-                </div>
-              )}
-              {incident.individuals_affected && (
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Individuals affected: </span>
-                  <span className="font-medium">{incident.individuals_affected}</span>
-                </div>
-              )}
-              {incident.potential_harm && (
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Potential harm: </span>
-                  <span className="font-medium">{incident.potential_harm}</span>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="space-y-4">
+    <div className="space-y-4">
+      {executiveSummary && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Regulatory Applicability</CardTitle>
+            <CardTitle className="text-sm">Executive Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <AssessmentRow label="GDPR Applicable" value={gdprVal} pending={incident.gdpr_applicable === null} />
-            <AssessmentRow label="NIS2 Applicable" value={nis2Val} pending={incident.nis2_applicable === null} />
-            <AssessmentRow
-              label="Notifiability"
-              value={incident.notifiability_assessment ?? "Pending"}
-              pending={!incident.notifiability_assessment}
-            />
+            <p className="text-sm leading-relaxed">{executiveSummary}</p>
           </CardContent>
         </Card>
+      )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Risk & Notification</CardTitle>
+            <CardTitle className="text-sm">Description</CardTitle>
           </CardHeader>
           <CardContent>
-            <AssessmentRow
-              label="Risk Classification"
-              value={incident.risk_classification ?? "Pending"}
-              pending={!incident.risk_classification}
-            />
-            <AssessmentRow
-              label="Notification Decision"
-              value={incident.notification_decision ?? "Pending"}
-              pending={!incident.notification_decision}
-            />
-            {incident.notification_decision_reason && (
-              <div className="mt-2 p-2 bg-muted rounded text-sm">
-                <span className="text-muted-foreground">Reason: </span>
-                {incident.notification_decision_reason}
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">{incident.description}</p>
+            {(incident.data_categories || incident.individuals_affected || incident.potential_harm) && (
+              <div className="mt-4 pt-4 border-t space-y-2">
+                {incident.data_categories && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Data categories: </span>
+                    <span className="font-medium">{Array.isArray(incident.data_categories) ? incident.data_categories.join(", ") : incident.data_categories}</span>
+                  </div>
+                )}
+                {incident.individuals_affected && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Individuals affected: </span>
+                    <span className="font-medium">{incident.individuals_affected}</span>
+                  </div>
+                )}
+                {incident.potential_harm && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Potential harm: </span>
+                    <span className="font-medium">{incident.potential_harm}</span>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Regulatory Applicability</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AssessmentRow label="GDPR Applicable" value={gdprVal} pending={incident.gdpr_applicable === null} />
+              <AssessmentRow label="NIS2 Applicable" value={nis2Val} pending={incident.nis2_applicable === null} />
+              <AssessmentRow
+                label="Notifiability"
+                value={incident.notifiability_assessment ?? "Pending"}
+                pending={!incident.notifiability_assessment}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Risk & Notification</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AssessmentRow
+                label="Risk Classification"
+                value={incident.risk_classification ?? "Pending"}
+                pending={!incident.risk_classification}
+              />
+              <AssessmentRow
+                label="Notification Decision"
+                value={incident.notification_decision ?? "Pending"}
+                pending={!incident.notification_decision}
+              />
+              {incident.notification_decision_reason && (
+                <div className="mt-2 p-2 bg-muted rounded text-sm">
+                  <span className="text-muted-foreground">Reason: </span>
+                  {incident.notification_decision_reason}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

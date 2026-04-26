@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Document, Incident
 from app.schemas.document import DocumentResponse
+from app.services.overview_update_service import apply_document_overview_update
 from app.services.timeline_service import log_event
-from app.services.rag_service import embed_document
+from app.services.rag_service import embed_document, extract_text
 from app.config import UPLOAD_DIR
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,12 @@ async def upload_document(
     with open(filepath, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
+    document_text = ""
+    try:
+        document_text = extract_text(str(filepath))
+    except Exception:
+        logger.exception("Failed to extract text from document %s", safe_name)
+
     suffix = Path(safe_name).suffix.lower().lstrip(".")
     doc = Document(
         incident_id=incident_id,
@@ -78,6 +85,14 @@ async def upload_document(
     except Exception:
         logger.exception("Failed to embed document %s (id=%s)", safe_name, doc.id)
 
+    overview_changes = apply_document_overview_update(
+        incident,
+        x_role,
+        filename=safe_name,
+        description=description,
+        text=document_text,
+    )
+
     await log_event(
         db,
         incident_id=incident_id,
@@ -85,6 +100,15 @@ async def upload_document(
         description=f"Document '{safe_name}' uploaded",
         role=x_role,
     )
+    if overview_changes:
+        await log_event(
+            db,
+            incident_id=incident_id,
+            event_type="overview_updated",
+            description=f"Overview auto-updated from {x_role} document",
+            role=x_role,
+            metadata={"fields": overview_changes},
+        )
     await db.commit()
     await db.refresh(doc)
 

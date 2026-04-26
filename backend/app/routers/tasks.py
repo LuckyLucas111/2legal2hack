@@ -14,8 +14,12 @@ from app.models.task import Task
 from app.models.incident import Incident
 from app.models.document import Document
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+from app.services.overview_update_service import (
+    apply_document_overview_update,
+    apply_task_response_overview_update,
+)
 from app.services.timeline_service import log_event
-from app.services.rag_service import embed_document, embed_task_response
+from app.services.rag_service import embed_document, embed_task_response, extract_text
 from app.services.legal_summary_service import generate_legal_summary
 from app.config import UPLOAD_DIR
 
@@ -135,12 +139,22 @@ async def update_task(
         changes.append("priority")
 
     if file and file.filename:
+        incident = await db.get(Incident, incident_id)
+        if not incident:
+            raise HTTPException(404, "Incident not found")
+
         incident_dir = UPLOAD_DIR / str(incident_id)
         incident_dir.mkdir(parents=True, exist_ok=True)
         safe_name = Path(file.filename).name
         filepath = incident_dir / safe_name
         with open(filepath, "wb") as f:
             shutil.copyfileobj(file.file, f)
+
+        document_text = ""
+        try:
+            document_text = extract_text(str(filepath))
+        except Exception:
+            logger.exception("Failed to extract text from task document %s", safe_name)
 
         suffix = Path(safe_name).suffix.lower().lstrip(".")
         doc = Document(
@@ -169,11 +183,34 @@ async def update_task(
 
         task.response_document_id = doc.id
         changes.append("file")
+        overview_changes = apply_document_overview_update(
+            incident,
+            x_role,
+            filename=safe_name,
+            description=doc.description,
+            text=document_text,
+        )
+    else:
+        incident = None
+        overview_changes = []
 
     if status == "completed":
         task.completed_at = datetime.utcnow()
 
     task.updated_at = datetime.utcnow()
+
+    if response is not None or status == "completed":
+        if incident is None:
+            incident = await db.get(Incident, incident_id)
+        if incident:
+            overview_changes.extend(
+                apply_task_response_overview_update(
+                    incident,
+                    x_role,
+                    task_title=task.title,
+                    response=response,
+                )
+            )
 
     event_desc = f"Task '{task.title}' updated by {x_role}"
     if status:
@@ -185,6 +222,15 @@ async def update_task(
         db, incident_id, "task_updated", event_desc, x_role,
         {"task_id": task_id, "changes": changes},
     )
+    if overview_changes:
+        await log_event(
+            db,
+            incident_id,
+            "overview_updated",
+            f"Overview auto-updated from {x_role} task response",
+            x_role,
+            {"task_id": task_id, "fields": overview_changes},
+        )
     await db.commit()
     await db.refresh(task, attribute_names=["response_document"])
     return task
